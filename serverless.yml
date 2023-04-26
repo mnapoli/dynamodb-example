@@ -1,0 +1,53 @@
+service: tmp-dynamo
+
+provider:
+  name: aws
+  # The AWS region in which to deploy (us-east-1 is the default)
+  region: us-east-1
+  # Environment variables
+  environment:
+    APP_ENV: production # Or use ${sls:stage} if you want the environment to match the stage
+  iam:
+    role:
+      statements:
+        # Allow Lambda to access DynamoDB
+        - Effect: Allow
+          Action: dynamodb:*
+          Resource:
+            - !GetAtt MyTable.Arn
+
+package:
+  # Files and directories to exclude from deployment
+  patterns:
+    - '!node_modules/**'
+    - '!public/storage'
+    - '!resources/assets/**'
+    - '!storage/**'
+    - '!tests/**'
+
+functions:
+  handler:
+    handler: App\Service\DynamoHandler
+    runtime: php-81
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt MyTable.StreamArn
+
+plugins:
+  - ./vendor/bref/bref
+
+resources:
+  Resources:
+    MyTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
